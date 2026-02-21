@@ -53,17 +53,13 @@ async function login(apiUrl, username, password) {
     }
     
     try {
-        // Usar servicio CORS público
-        const corsUrl = 'https://cors-anywhere.herokuapp.com/';
-        const traccarUrl = `https://${apiUrl}/api/session`;
-        
-        const response = await fetch(corsUrl + traccarUrl, {
+        const response = await fetch('/api/session', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                'Origin': window.location.origin
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
+                apiUrl: apiUrl,
                 email: username,
                 password: password
             })
@@ -154,14 +150,7 @@ function initMap() {
 // ===== LOAD DEVICES =====
 async function loadDevices() {
     try {
-        const corsUrl = 'https://cors-anywhere.herokuapp.com/';
-        const traccarUrl = `https://${state.apiUrl}/api/devices`;
-        
-        const response = await fetch(corsUrl + traccarUrl, {
-            headers: {
-                'Authorization': `Bearer ${state.token}`
-            }
-        });
+        const response = await fetch(`/api/devices?apiUrl=${state.apiUrl}&token=${state.token}`);
         
         if (!response.ok) {
             throw new Error('Error al cargar dispositivos');
@@ -182,14 +171,7 @@ async function loadDevices() {
 // ===== LOAD POSITIONS =====
 async function loadPositions() {
     try {
-        const corsUrl = 'https://cors-anywhere.herokuapp.com/';
-        const traccarUrl = `https://${state.apiUrl}/api/positions`;
-        
-        const response = await fetch(corsUrl + traccarUrl, {
-            headers: {
-                'Authorization': `Bearer ${state.token}`
-            }
-        });
+        const response = await fetch(`/api/positions?apiUrl=${state.apiUrl}&token=${state.token}`);
         
         if (!response.ok) {
             throw new Error('Error al cargar posiciones');
