@@ -1,0 +1,15 @@
+[phases.setup]
+nixPkgs = ["nodejs"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "npx serve . -p $PORT"
+```
+
+Luego en la terminal ejecuta:
+```
+git add .
+git commit -m "agregar configuracion"
+git push
