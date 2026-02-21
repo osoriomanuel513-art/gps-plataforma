@@ -2,14 +2,18 @@ const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '.')));
 
+// Servir archivos estáticos
+app.use(express.static(path.join(__dirname)));
+
+// Proxy para login
 app.post('/api/proxy/session', async (req, res) => {
     try {
         const { apiUrl, email, password } = req.body;
@@ -25,6 +29,7 @@ app.post('/api/proxy/session', async (req, res) => {
     }
 });
 
+// Proxy para dispositivos
 app.get('/api/proxy/devices', async (req, res) => {
     try {
         const { apiUrl, token } = req.query;
@@ -38,6 +43,7 @@ app.get('/api/proxy/devices', async (req, res) => {
     }
 });
 
+// Proxy para posiciones
 app.get('/api/proxy/positions', async (req, res) => {
     try {
         const { apiUrl, token } = req.query;
@@ -51,12 +57,14 @@ app.get('/api/proxy/positions', async (req, res) => {
     }
 });
 
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
-});
-
+// Servir index.html para todas las rutas
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    const indexPath = path.join(__dirname, 'index.html');
+    if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+    } else {
+        res.status(404).send('index.html not found');
+    }
 });
 
 app.listen(PORT, () => {

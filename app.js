@@ -337,7 +337,7 @@ function showLoginError(message) {
 // ===== INITIALIZE =====
 document.addEventListener('DOMContentLoaded', () => {
     // Set default API URL
-    if (apiUrlInput) apiUrlInput.value = 'gps-plataforma-production.up.railway.app';
+    if (apiUrlInput) apiUrlInput.value = 'traccar-production-5353.up.railway.app';
     if (usernameInput) usernameInput.value = 'Angelaltamirano991@gmail.com';
     if (passwordInput) passwordInput.value = 'Angelaltamirano991@';
 });
