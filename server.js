@@ -23,13 +23,9 @@ app.post('/api/proxy/session', async (req, res) => {
         const response = await fetch(url, {
             method: 'POST',
             headers: { 
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Content-Type': 'application/x-www-form-urlencoded'
             },
-            body: JSON.stringify({ 
-                email: email, 
-                password: password 
-            })
+            body: `email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`
         });
         
         console.log(`Response status: ${response.status}`);
