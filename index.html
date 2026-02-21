@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Tracker - Rastreo en Tiempo Real</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+    <!-- LOGIN SCREEN -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-card">
+            <div class="login-header">
+                <span class="logo">📍</span>
+                <h1>GPS Tracker</h1>
+                <p>Rastreo en Tiempo Real</p>
+            </div>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Usuario:</label>
+                    <input type="email" id="username" placeholder="Tu email" required>
+                </div>
+                <div class="form-group">
+                    <label>Contraseña:</label>
+                    <input type="password" id="password" placeholder="Tu contraseña" required>
+                </div>
+                <button type="submit" class="btn-login">Iniciar Sesión</button>
+                <div id="loginError" class="login-error"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div id="dashboard" class="dashboard hidden">
+        <!-- HEADER -->
+        <div class="header">
+            <div class="header-left">
+                <span class="logo">📍</span>
+                <span class="app-name">GPS Tracker</span>
+            </div>
+            <div class="header-right">
+                <span id="userInfo"></span>
+                <button id="logoutBtn" class="btn-logout">Cerrar Sesión</button>
+            </div>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            <!-- SIDEBAR -->
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <h3>Dispositivos</h3>
+                    <span id="deviceCount" class="device-count">0</span>
+                </div>
+                <div id="devicesList" class="devices-list">
+                    <div class="loading">Cargando...</div>
+                </div>
+            </div>
+
+            <!-- MAP -->
+            <div class="map-container">
+                <div id="map"></div>
+
+                <!-- DEVICE PANEL -->
+                <div id="devicePanel" class="device-panel hidden">
+                    <div class="panel-header">
+                        <h3 id="panelTitle">Dispositivo</h3>
+                        <button onclick="closeDevicePanel()" class="btn-close">✕</button>
+                    </div>
+                    <div class="panel-content">
+                        <div class="detail-row">
+                            <span class="label">Nombre:</span>
+                            <span id="detailName" class="value">-</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Estado:</span>
+                            <span id="detailStatus" class="value">-</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Latitud:</span>
+                            <span id="detailLat" class="value">-</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Longitud:</span>
+                            <span id="detailLng" class="value">-</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Velocidad:</span>
+                            <span id="detailSpeed" class="value">-</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="label">Última actualización:</span>
+                            <span id="detailTime" class="value">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+[[redirects]]
+  from = "/api/*"
+  to = "https://traccar-production-5353.up.railway.app/api/:splat"
+  status = 200
+  force = true
