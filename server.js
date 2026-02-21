@@ -15,31 +15,24 @@ app.use(express.static(path.join(__dirname)));
 app.post('/api/proxy/session', async (req, res) => {
     try {
         const { apiUrl, email, password } = req.body;
-        console.log(`Login attempt: ${email} to ${apiUrl}`);
         
         const url = `https://${apiUrl}/api/session`;
-        console.log(`Fetching: ${url}`);
         
         const response = await fetch(url, {
             method: 'POST',
             headers: { 
-                'Content-Type': 'application/x-www-form-urlencoded'
+                'Content-Type': 'application/json'
             },
-            body: `email=${encodeURIComponent(email)}&password=${encodeURIComponent(password)}`
+            body: JSON.stringify({ 
+                email: email, 
+                password: password 
+            })
         });
         
-        console.log(`Response status: ${response.status}`);
-        
         const data = await response.json();
-        console.log(`Response data:`, data);
         
-        if (!response.ok) {
-            return res.status(response.status).json(data);
-        }
-        
-        res.json(data);
+        res.status(response.status).json(data);
     } catch (error) {
-        console.error('Login error:', error);
         res.status(500).json({ error: error.message });
     }
 });
