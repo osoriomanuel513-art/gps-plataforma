@@ -53,13 +53,17 @@ async function login(apiUrl, username, password) {
     }
     
     try {
-        const response = await fetch('/api/proxy/session', {
+        // Usar servicio CORS público
+        const corsUrl = 'https://cors-anywhere.herokuapp.com/';
+        const traccarUrl = `https://${apiUrl}/api/session`;
+        
+        const response = await fetch(corsUrl + traccarUrl, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Origin': window.location.origin
             },
             body: JSON.stringify({
-                apiUrl: apiUrl,
                 email: username,
                 password: password
             })
@@ -150,7 +154,14 @@ function initMap() {
 // ===== LOAD DEVICES =====
 async function loadDevices() {
     try {
-        const response = await fetch(`/api/proxy/devices?apiUrl=${state.apiUrl}&token=${state.token}`);
+        const corsUrl = 'https://cors-anywhere.herokuapp.com/';
+        const traccarUrl = `https://${state.apiUrl}/api/devices`;
+        
+        const response = await fetch(corsUrl + traccarUrl, {
+            headers: {
+                'Authorization': `Bearer ${state.token}`
+            }
+        });
         
         if (!response.ok) {
             throw new Error('Error al cargar dispositivos');
@@ -171,7 +182,14 @@ async function loadDevices() {
 // ===== LOAD POSITIONS =====
 async function loadPositions() {
     try {
-        const response = await fetch(`/api/proxy/positions?apiUrl=${state.apiUrl}&token=${state.token}`);
+        const corsUrl = 'https://cors-anywhere.herokuapp.com/';
+        const traccarUrl = `https://${state.apiUrl}/api/positions`;
+        
+        const response = await fetch(corsUrl + traccarUrl, {
+            headers: {
+                'Authorization': `Bearer ${state.token}`
+            }
+        });
         
         if (!response.ok) {
             throw new Error('Error al cargar posiciones');
