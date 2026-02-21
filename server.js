@@ -9,22 +9,41 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-
-// Servir archivos estáticos
 app.use(express.static(path.join(__dirname)));
 
 // Proxy para login
 app.post('/api/proxy/session', async (req, res) => {
     try {
         const { apiUrl, email, password } = req.body;
-        const response = await fetch(`https://${apiUrl}/api/session`, {
+        console.log(`Login attempt: ${email} to ${apiUrl}`);
+        
+        const url = `https://${apiUrl}/api/session`;
+        console.log(`Fetching: ${url}`);
+        
+        const response = await fetch(url, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
+            headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ 
+                email: email, 
+                password: password 
+            })
         });
+        
+        console.log(`Response status: ${response.status}`);
+        
         const data = await response.json();
+        console.log(`Response data:`, data);
+        
+        if (!response.ok) {
+            return res.status(response.status).json(data);
+        }
+        
         res.json(data);
     } catch (error) {
+        console.error('Login error:', error);
         res.status(500).json({ error: error.message });
     }
 });
