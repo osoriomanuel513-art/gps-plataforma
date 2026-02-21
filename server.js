@@ -1,108 +1,56 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
+const net = require('net');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SINOTRACK_PORT = 8040;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-// Base de datos
-const db = new sqlite3.Database(':memory:');
-
-// Crear tablas
-db.serialize(() => {
-    db.run(`
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY,
-            email TEXT UNIQUE,
-            password TEXT,
-            name TEXT
-        )
-    `);
-    
-    db.run(`
-        CREATE TABLE IF NOT EXISTS devices (
-            id INTEGER PRIMARY KEY,
-            userId INTEGER,
-            name TEXT,
-            uniqueId TEXT UNIQUE,
-            FOREIGN KEY(userId) REFERENCES users(id)
-        )
-    `);
-    
-    db.run(`
-        CREATE TABLE IF NOT EXISTS positions (
-            id INTEGER PRIMARY KEY,
-            deviceId INTEGER,
-            latitude REAL,
-            longitude REAL,
-            speed REAL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(deviceId) REFERENCES devices(id)
-        )
-    `);
-    
-    // Insertar usuario de prueba
-    db.run(`
-        INSERT OR IGNORE INTO users (email, password, name) 
-        VALUES (?, ?, ?)
-    `, ['Angelaltamirano991@gmail.com', 'Angelaltamirano991@', 'Angel Altamirano']);
-    
-    // Insertar dispositivo de prueba
-    db.run(`
-        INSERT OR IGNORE INTO devices (userId, name, uniqueId) 
-        VALUES (?, ?, ?)
-    `, [1, 'joy', '9176282743']);
-});
+// Base de datos en memoria (sin sqlite3)
+const db = {
+    users: [
+        { id: 1, email: 'Angelaltamirano991@gmail.com', password: 'Angelaltamirano991@', name: 'Angel Altamirano' }
+    ],
+    devices: [
+        { id: 1, userId: 1, name: 'joy', uniqueId: '9176282743' }
+    ],
+    positions: []
+};
 
 // Login
 app.post('/api/session', (req, res) => {
     const { email, password } = req.body;
+    const user = db.users.find(u => u.email === email && u.password === password);
     
-    db.get(
-        'SELECT * FROM users WHERE email = ? AND password = ?',
-        [email, password],
-        (err, user) => {
-            if (err || !user) {
-                return res.status(401).json({ error: 'Credenciales inválidas' });
-            }
-            res.json({
-                token: 'token_' + user.id,
-                name: user.name,
-                id: user.id
-            });
-        }
-    );
+    if (!user) {
+        return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+    
+    res.json({
+        token: 'token_' + user.id,
+        name: user.name,
+        id: user.id
+    });
 });
 
 // Obtener dispositivos
 app.get('/api/devices', (req, res) => {
-    db.all('SELECT * FROM devices', (err, devices) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(devices || []);
-    });
+    res.json(db.devices);
 });
 
 // Obtener posiciones
 app.get('/api/positions', (req, res) => {
-    db.all(`
-        SELECT p.*, d.name as deviceName 
-        FROM positions p 
-        JOIN devices d ON p.deviceId = d.id 
-        ORDER BY p.timestamp DESC 
-        LIMIT 100
-    `, (err, positions) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(positions || []);
-    });
+    const positions = db.positions.slice(-100).reverse();
+    res.json(positions);
 });
 
-// Guardar posición (para GPS)
+// Guardar posición
 app.post('/api/positions', (req, res) => {
     const { deviceId, latitude, longitude, speed } = req.body;
     
@@ -110,14 +58,17 @@ app.post('/api/positions', (req, res) => {
         return res.status(400).json({ error: 'Faltan parámetros' });
     }
     
-    db.run(
-        'INSERT INTO positions (deviceId, latitude, longitude, speed) VALUES (?, ?, ?, ?)',
-        [deviceId, latitude, longitude, speed || 0],
-        function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ id: this.lastID, success: true });
-        }
-    );
+    const position = {
+        id: db.positions.length + 1,
+        deviceId,
+        latitude,
+        longitude,
+        speed: speed || 0,
+        timestamp: new Date().toISOString()
+    };
+    
+    db.positions.push(position);
+    res.json({ success: true, id: position.id });
 });
 
 // Crear dispositivo
@@ -128,14 +79,15 @@ app.post('/api/devices', (req, res) => {
         return res.status(400).json({ error: 'Faltan parámetros' });
     }
     
-    db.run(
-        'INSERT INTO devices (userId, name, uniqueId) VALUES (?, ?, ?)',
-        [1, name, uniqueId],
-        function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ id: this.lastID, name, uniqueId });
-        }
-    );
+    const device = {
+        id: db.devices.length + 1,
+        userId: 1,
+        name,
+        uniqueId
+    };
+    
+    db.devices.push(device);
+    res.json(device);
 });
 
 // Health check
@@ -150,4 +102,56 @@ app.get('*', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Servidor corriendo en puerto ${PORT}`);
+});
+
+// Servidor Sinotrack en puerto 8040
+const sinotrackServer = net.createServer((socket) => {
+    console.log('Cliente Sinotrack conectado');
+    
+    socket.on('data', (data) => {
+        try {
+            const message = data.toString().trim();
+            console.log('Datos Sinotrack recibidos:', message);
+            
+            // Parsear formato Sinotrack: $GPRMC,lat,lng,speed,etc
+            if (message.includes('$GPRMC') || message.includes('GPRMC')) {
+                const parts = message.split(',');
+                if (parts.length >= 5) {
+                    const latitude = parseFloat(parts[2]);
+                    const longitude = parseFloat(parts[3]);
+                    const speed = parseFloat(parts[4]) || 0;
+                    const deviceId = 1;
+                    
+                    if (!isNaN(latitude) && !isNaN(longitude)) {
+                        const position = {
+                            id: db.positions.length + 1,
+                            deviceId,
+                            latitude,
+                            longitude,
+                            speed,
+                            timestamp: new Date().toISOString()
+                        };
+                        
+                        db.positions.push(position);
+                        console.log('Posición guardada:', latitude, longitude);
+                        socket.write('OK\n');
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error procesando datos Sinotrack:', error);
+        }
+    });
+    
+    socket.on('end', () => {
+        console.log('Cliente Sinotrack desconectado');
+    });
+    
+    socket.on('error', (error) => {
+        console.error('Error en socket Sinotrack:', error);
+    });
+});
+
+sinotrackServer.listen(SINOTRACK_PORT, () => {
+    console.log(`Servidor Sinotrack escuchando en puerto ${SINOTRACK_PORT}`);
 });
