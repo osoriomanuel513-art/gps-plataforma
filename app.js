@@ -1,8 +1,6 @@
-// ===== CONFIGURACION =====
-const TRACCAR_API = '/api';
-
 // ===== GLOBAL STATE =====
 let state = {
+    apiUrl: '',
     token: '',
     devices: [],
     positions: {},
@@ -16,6 +14,7 @@ let state = {
 const loginScreen = document.getElementById('loginScreen');
 const dashboard = document.getElementById('dashboard');
 const loginForm = document.getElementById('loginForm');
+const apiUrlInput = document.getElementById('apiUrl');
 const usernameInput = document.getElementById('username');
 const passwordInput = document.getElementById('password');
 const loginError = document.getElementById('loginError');
@@ -29,32 +28,41 @@ const devicePanel = document.getElementById('devicePanel');
 loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
+    const apiUrl = apiUrlInput.value.trim();
     const username = usernameInput.value.trim();
     const password = passwordInput.value.trim();
     
-    if (!username || !password) {
+    if (!apiUrl || !username || !password) {
         showLoginError('Por favor completa todos los campos');
         return;
     }
     
     try {
         loginError.classList.remove('show');
-        await login(username, password);
+        await login(apiUrl, username, password);
     } catch (error) {
         showLoginError(error.message);
     }
 });
 
 // ===== LOGIN FUNCTION =====
-async function login(username, password) {
+async function login(apiUrl, username, password) {
+    // Ensure URL has protocol
+    if (apiUrl.startsWith('http')) {
+        apiUrl = apiUrl.replace('https://', '').replace('http://', '');
+    }
+    
     try {
-        const response = await fetch(`${TRACCAR_API}/session`, {
+        const response = await fetch('/api/proxy/session', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
+                'Content-Type': 'application/json'
             },
-            credentials: 'include',
-            body: `email=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
+            body: JSON.stringify({
+                apiUrl: apiUrl,
+                email: username,
+                password: password
+            })
         });
         
         if (!response.ok) {
@@ -62,15 +70,27 @@ async function login(username, password) {
         }
         
         const data = await response.json();
-        state.token = data.token || btoa(`${username}:${password}`);
+        
+        if (!data.token) {
+            throw new Error('No se recibió token de autenticación');
+        }
+        
+        state.apiUrl = apiUrl;
+        state.token = data.token;
         
         userInfo.textContent = `Usuario: ${data.name || username}`;
         
+        // Show dashboard
         loginScreen.style.display = 'none';
         dashboard.classList.remove('hidden');
         
+        // Initialize map
         initMap();
+        
+        // Load devices
         await loadDevices();
+        
+        // Start auto-update
         startAutoUpdate();
         
     } catch (error) {
@@ -78,29 +98,49 @@ async function login(username, password) {
     }
 }
 
-// ===== LOGOUT =====
-logoutBtn.addEventListener('click', logout);
+// ===== LOGOUT FUNCTION =====
+logoutBtn.addEventListener('click', () => {
+    logout();
+});
 
 function logout() {
+    // Clear state
     state.token = '';
     state.devices = [];
     state.positions = {};
     state.selectedDeviceId = null;
     
-    if (state.updateInterval) clearInterval(state.updateInterval);
-    if (state.map) { state.map.remove(); state.map = null; }
+    // Stop auto-update
+    if (state.updateInterval) {
+        clearInterval(state.updateInterval);
+    }
+    
+    // Destroy map
+    if (state.map) {
+        state.map.remove();
+        state.map = null;
+    }
+    
+    // Clear markers
     state.markers = {};
     
+    // Show login screen
     loginScreen.style.display = 'flex';
     dashboard.classList.add('hidden');
+    
+    // Clear inputs
     loginForm.reset();
 }
 
-// ===== MAP =====
+// ===== MAP INITIALIZATION =====
 function initMap() {
-    if (state.map) state.map.remove();
+    if (state.map) {
+        state.map.remove();
+    }
     
-    state.map = L.map('map').setView([-12.046374, -77.042793], 12);
+    const mapContainer = document.getElementById('map');
+    state.map = L.map(mapContainer).setView([20, 0], 2);
+    
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19
@@ -110,12 +150,11 @@ function initMap() {
 // ===== LOAD DEVICES =====
 async function loadDevices() {
     try {
-        const response = await fetch(`${TRACCAR_API}/devices`, {
-            credentials: 'include',
-            headers: { 'Accept': 'application/json' }
-        });
+        const response = await fetch(`/api/proxy/devices?apiUrl=${state.apiUrl}&token=${state.token}`);
         
-        if (!response.ok) throw new Error('Error al cargar dispositivos');
+        if (!response.ok) {
+            throw new Error('Error al cargar dispositivos');
+        }
         
         state.devices = await response.json();
         deviceCount.textContent = state.devices.length;
@@ -125,21 +164,25 @@ async function loadDevices() {
         
     } catch (error) {
         console.error('Error loading devices:', error);
+        showLoginError('Error al cargar dispositivos');
     }
 }
 
 // ===== LOAD POSITIONS =====
 async function loadPositions() {
     try {
-        const response = await fetch(`${TRACCAR_API}/positions`, {
-            credentials: 'include',
-            headers: { 'Accept': 'application/json' }
-        });
+        const response = await fetch(`/api/proxy/positions?apiUrl=${state.apiUrl}&token=${state.token}`);
         
-        if (!response.ok) throw new Error('Error al cargar posiciones');
+        if (!response.ok) {
+            throw new Error('Error al cargar posiciones');
+        }
         
         const positions = await response.json();
-        positions.forEach(pos => { state.positions[pos.deviceId] = pos; });
+        
+        // Group positions by device
+        positions.forEach(pos => {
+            state.positions[pos.deviceId] = pos;
+        });
         
         updateMapMarkers();
         renderDevicesList();
@@ -149,7 +192,7 @@ async function loadPositions() {
     }
 }
 
-// ===== RENDER DEVICES =====
+// ===== RENDER DEVICES LIST =====
 function renderDevicesList() {
     devicesList.innerHTML = '';
     
@@ -171,23 +214,29 @@ function renderDevicesList() {
                 <span>${isOnline ? 'En línea' : 'Fuera de línea'}</span>
             </div>
         `;
-        deviceEl.addEventListener('click', (e) => selectDevice(device.id, e));
+        
+        deviceEl.addEventListener('click', () => selectDevice(device.id));
         devicesList.appendChild(deviceEl);
     });
 }
 
-// ===== MAP MARKERS =====
+// ===== UPDATE MAP MARKERS =====
 function updateMapMarkers() {
     state.devices.forEach(device => {
         const position = state.positions[device.id];
-        if (!position || !position.latitude || !position.longitude) return;
+        
+        if (!position || !position.latitude || !position.longitude) {
+            return;
+        }
         
         const isOnline = isDeviceOnline(position);
         const markerColor = isOnline ? '#10b981' : '#64748b';
         
         if (state.markers[device.id]) {
+            // Update existing marker
             state.markers[device.id].setLatLng([position.latitude, position.longitude]);
         } else {
+            // Create new marker
             const marker = L.circleMarker([position.latitude, position.longitude], {
                 radius: 8,
                 fillColor: markerColor,
@@ -204,30 +253,37 @@ function updateMapMarkers() {
             `);
             
             marker.on('click', () => selectDevice(device.id));
+            
             state.markers[device.id] = marker;
         }
     });
 }
 
 // ===== SELECT DEVICE =====
-function selectDevice(deviceId, e) {
+function selectDevice(deviceId) {
     state.selectedDeviceId = deviceId;
     
-    document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
-    if (e) e.currentTarget.classList.add('active');
+    // Update active state in list
+    document.querySelectorAll('.device-item').forEach(el => {
+        el.classList.remove('active');
+    });
+    event.currentTarget?.classList.add('active');
     
+    // Show device panel
     const device = state.devices.find(d => d.id === deviceId);
     const position = state.positions[deviceId];
     
     if (device && position) {
         showDevicePanel(device, position);
+        
+        // Center map on device
         if (position.latitude && position.longitude) {
             state.map.setView([position.latitude, position.longitude], 15);
         }
     }
 }
 
-// ===== DEVICE PANEL =====
+// ===== SHOW DEVICE PANEL =====
 function showDevicePanel(device, position) {
     const isOnline = isDeviceOnline(position);
     
@@ -243,24 +299,45 @@ function showDevicePanel(device, position) {
     devicePanel.classList.remove('hidden');
 }
 
+// ===== CLOSE DEVICE PANEL =====
 function closeDevicePanel() {
     devicePanel.classList.add('hidden');
     state.selectedDeviceId = null;
-    document.querySelectorAll('.device-item').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.device-item').forEach(el => {
+        el.classList.remove('active');
+    });
 }
 
-// ===== HELPERS =====
+// ===== CHECK IF DEVICE IS ONLINE =====
 function isDeviceOnline(position) {
     if (!position.deviceTime) return false;
-    const diffMinutes = (new Date() - new Date(position.deviceTime)) / (1000 * 60);
+    
+    const lastUpdate = new Date(position.deviceTime).getTime();
+    const now = new Date().getTime();
+    const diffMinutes = (now - lastUpdate) / (1000 * 60);
+    
+    // Consider online if updated in last 5 minutes
     return diffMinutes < 5;
 }
 
+// ===== AUTO UPDATE =====
 function startAutoUpdate() {
-    state.updateInterval = setInterval(loadPositions, 10000);
+    // Update every 10 seconds
+    state.updateInterval = setInterval(async () => {
+        await loadPositions();
+    }, 10000);
 }
 
+// ===== SHOW LOGIN ERROR =====
 function showLoginError(message) {
     loginError.textContent = message;
     loginError.classList.add('show');
 }
+
+// ===== INITIALIZE =====
+document.addEventListener('DOMContentLoaded', () => {
+    // Set default API URL
+    if (apiUrlInput) apiUrlInput.value = 'gps-plataforma-production.up.railway.app';
+    if (usernameInput) usernameInput.value = 'Angelaltamirano991@gmail.com';
+    if (passwordInput) passwordInput.value = 'Angelaltamirano991@';
+});
